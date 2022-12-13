@@ -2,11 +2,14 @@ import torch
 from torch.autograd import Function
 import torch.nn as nn
 
-from qiskit import QuantumCircuit, Aer, execute
-from qiskit.circuit import Parameter
-from qiskit.extensions import UnitaryGate
+from qiskit import QuantumCircuit,QuantumRegister, Aer, execute
 import numpy as np
 import pandas as pd
+import qiskit
+from qiskit.converters import circuit_to_dag, dag_to_circuit
+from qiskit.visualization import dag_drawer
+from collections import OrderedDict
+
 
 class QKTCallback:
     """Callback wrapper class."""
@@ -61,3 +64,21 @@ def rx_kernel(qc,x_params,n_external_inputs,n_extra_qubits):
         qc.rx(x_params[i], i)
     for j in range(n_extra_qubits):
         qc.h(n_external_inputs+j)
+
+
+def ising_quantum_circuit(n_inputs,x_params,theta_emb_params,n_layers_emb):
+    n_output=2
+    qc=QuantumCircuit(n_inputs,n_output)
+    from qiskit.quantum_info import Statevector
+    state_vector=Statevector(qc)
+    qc.initialize(state_vector,list(range(0,n_inputs)))
+    qc.barrier()
+
+#### ansatz ####
+    n_extra_qubits=0
+    ising_interaction(qc,x_params,theta_emb_params,n_inputs,n_layers_emb,n_extra_qubits) 
+    qc.barrier()
+    qc.measure(list(range(n_output)),list(range(n_output)))
+#### measurement to reduce dimensionality ####
+    return qc
+

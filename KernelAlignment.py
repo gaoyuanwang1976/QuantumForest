@@ -1,8 +1,13 @@
 from qiskit_machine_learning.utils.loss_functions import KernelLoss
 from qiskit_machine_learning.kernels import TrainableKernel
+from qiskit.circuit import ParameterVector
+from qiskit.providers.aer import AerSimulator
+
+from qiskit import assemble,Aer,execute
 from typing import Sequence
 import numpy as np
 from sklearn.svm import SVC
+import embedding
 
 # KernelAlignment Loss
 class KALoss(KernelLoss):
@@ -40,18 +45,28 @@ class KALoss(KernelLoss):
         kmatrix_o=normalize_kernel(kmatrix_o)
         # Get estimated kernel matrix after applying feature mapping
         #If y_vec is None, self inner product is calculated. If using statevector_simulator, only build circuits for Ψ(x)|0⟩, then perform inner product classically.
-        kmatrix = quantum_kernel.evaluate(np.array(data)) 
+
+
+        mapped_data=evaluate_kernel(data,quantum_kernel)
+        #mapped_data=data
+        kmatrix=np.zeros((len(mapped_data),len(mapped_data)))
+        for index_a,a in enumerate(mapped_data):
+            for index_b,b in enumerate(mapped_data):
+                kmatrix[index_a][index_b]=np.dot(a, b)
+                #kmatrix[index_a][index_b]=np.random.rand()
+        #kmatrix = quantum_kernel.evaluate(np.array(data)) 
+
         kmatrix=normalize_kernel(kmatrix)
     
         # Calculate loss
         loss = -1.*frobenius_alignment(kmatrix,kmatrix_o)
-
+ 
         return loss
 
 def normalize_kernel(kernel):
     maxData=(max(kernel.flatten())).round(3)
     minData=(min(kernel.flatten())).round(3)
-    kernel=(kernel-minData)/(maxData-minData)*np.pi
+    kernel=(kernel-minData)/(maxData-minData)
     return kernel
 
 def frobenius_alignment(k1,k2):
@@ -62,3 +77,26 @@ def frobenius_alignment(k1,k2):
     k2_F=np.linalg.norm(k2, 'fro')
     alignment=k1_k2_F/k1_F/k2_F
     return alignment
+
+
+def evaluate_kernel(X,kernel):
+    n_output=2
+    n=2**n_output
+    theta_params_optimized=list(kernel.training_parameter_binds.values())
+    n_layers_emb=1
+    n_inputs=len(X[0])
+    
+    mapped_X=[]
+    backend=AerSimulator(method='statevector')
+    for x_params in X:
+        qc_optimized=embedding.ising_quantum_circuit(n_inputs,x_params,theta_params_optimized,n_layers_emb)
+        job=execute(qc_optimized, backend,shots=512)
+        result = job.result()
+        keys=result.get_counts().keys()
+        new_data=[0]*n
+        for k_bin in keys:
+            k_int=int(k_bin, 2)
+            new_data[k_int]=result.get_counts()[k_bin]
+        mapped_X.append(new_data)
+    return mapped_X
+

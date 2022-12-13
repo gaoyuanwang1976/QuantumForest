@@ -1,15 +1,20 @@
 import numpy as np
 import random 
 import os
-
-from qiskit import QuantumCircuit,assemble,Aer
-from qiskit.circuit import ParameterVector
+import qiskit
+from qiskit import QuantumCircuit,assemble,Aer,execute
+from qiskit.circuit import ParameterVector,QuantumCircuit
 from qiskit.algorithms.optimizers import COBYLA, SPSA, ADAM, TNC
 from qiskit.providers.aer import AerSimulator
 
 from qiskit_machine_learning.algorithms import QSVC
 from qiskit_machine_learning.kernels import QuantumKernel
 from qiskit_machine_learning.kernels.algorithms import QuantumKernelTrainer
+
+from qiskit_machine_learning.neural_networks import CircuitQNN
+from qiskit_machine_learning.algorithms.classifiers import NeuralNetworkClassifier
+from qiskit_machine_learning.utils.loss_functions import SVCLoss
+
 
 from math import comb
 import os
@@ -76,18 +81,8 @@ if __name__=="__main__":
     n_gates_emb = (n_inputs+n_embedding_gates)*n_layers_emb
     x_params = ParameterVector('x',n_inputs)
     theta_emb_params = ParameterVector('theta_emb', n_gates_emb)
-    qc=QuantumCircuit(n_inputs)
-    
-#### initialization ####
-    from qiskit.quantum_info import Statevector
-    state_vector=Statevector(qc)
-    qc.initialize(state_vector,list(range(0,n_inputs)))
-    qc.barrier()
+    qc=embedding.ising_quantum_circuit(n_inputs,x_params,theta_emb_params,n_layers_emb)
 
-#### ansatz ####
-    n_extra_qubits=0
-    embedding.ising_interaction(qc,x_params,theta_emb_params,n_inputs,n_layers_emb,n_extra_qubits) 
-    qc.barrier()
 
 ############################
 ###### Quantum Kernel ######
@@ -96,32 +91,17 @@ if __name__=="__main__":
 
     backend=AerSimulator(method='statevector')
     quant_kernel = QuantumKernel(feature_map=qc,training_parameters=theta_emb_params,quantum_instance=backend)
+    #quant_kernel = QuantumKernel(feature_map=qc,quantum_instance=backend)
     cb_qkt = embedding.QKTCallback()
-    opt = SPSA(maxiter=10, callback=cb_qkt.callback)
+    opt = SPSA(maxiter=2, callback=cb_qkt.callback)
     loss_func = KernelAlignment.KALoss()
 
     for epoch in range(1):
         qk_trainer = QuantumKernelTrainer(quantum_kernel=quant_kernel,loss=loss_func,optimizer=opt)
+        print('start fitting')
         qkt_results = qk_trainer.fit(Xtrain, ytrain)
         optimized_kernel = qkt_results.quantum_kernel
-            
-    sim = Aer.get_backend('qasm_simulator')
-    theta_params_optimized=[]
-    for index in range(n_gates_emb):
-        theta_params_optimized.append(quant_kernel.training_parameter_binds[theta_emb_params[index]])
-    for x_params in Xtest:
-        qc_optimized=QuantumCircuit(n_inputs)
-        state_vector=Statevector(qc_optimized)
-        qc_optimized.initialize(state_vector,list(range(0,n_inputs)))
-        qc_optimized.barrier()
-
-        n_extra_qubits=0
-        embedding.ising_interaction(qc_optimized,x_params,theta_params_optimized,n_inputs,n_layers_emb,n_extra_qubits) 
-        qc_optimized.save_statevector()   # Tell simulator to save statevector
-        qobj = assemble(qc_optimized)     # Create a Qobj from the circuit for the simulator to run
-        result = sim.run(qobj).result()
-        out_state = result.get_statevector()
-        amplitude=np.absolute(out_state)
-        print(amplitude)
-    #for index in range(10):
-    #    print(quant_kernel.user_param_binds[theta_emb_params[index]])
+    
+    print('start producing output')
+    X=np.concatenate((Xtrain,Xtest))
+    KernelAlignment.evaluate_kernel(X,optimized_kernel)
