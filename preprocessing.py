@@ -92,3 +92,23 @@ def convert_for_qiskit(dataset):
     X = np.array(X)
     y = np.array(y)
     return(X,y)
+
+def divide_input(X,excess_group,n_groups,n_in_dim):
+    n_data=len(X)
+    while excess_group>0:
+        X=np.vstack([X.T, [0]*n_data]).T
+        excess_group=-1
+
+    X_group=np.zeros((n_groups,n_data,n_in_dim))
+
+    for g in range(n_groups):
+        X_group[g]=X.T[g*n_in_dim:(g+1)*n_in_dim].T
+
+    return X_group
+
+
+def append_mapped(X,X_mapped):
+    for index in range(len(X_mapped)):
+
+        X[index].extend(X_mapped[index])
+    return X

@@ -15,8 +15,8 @@ class KALoss(KernelLoss):
     def __init__(self, **kwargs):
         """
         Args:
-            **kwargs: Arbitrary keyword arguments to pass to SVC constructor within
-                      SVCLoss evaluation.
+            **kwargs: Arbitrary keyword arguments to pass within
+                      KALoss evaluation.
         """
         self.kwargs = kwargs
 
@@ -46,15 +46,12 @@ class KALoss(KernelLoss):
         # Get estimated kernel matrix after applying feature mapping
         #If y_vec is None, self inner product is calculated. If using statevector_simulator, only build circuits for Ψ(x)|0⟩, then perform inner product classically.
 
-
-        mapped_data=evaluate_kernel(data,quantum_kernel)
+        mapped_data=evaluate_map(data,quantum_kernel,self.kwargs['n_output'])
         #mapped_data=data
         kmatrix=np.zeros((len(mapped_data),len(mapped_data)))
         for index_a,a in enumerate(mapped_data):
             for index_b,b in enumerate(mapped_data):
                 kmatrix[index_a][index_b]=np.dot(a, b)
-                #kmatrix[index_a][index_b]=np.random.rand()
-        #kmatrix = quantum_kernel.evaluate(np.array(data)) 
 
         kmatrix=normalize_kernel(kmatrix)
     
@@ -79,8 +76,8 @@ def frobenius_alignment(k1,k2):
     return alignment
 
 
-def evaluate_kernel(X,kernel):
-    n_output=2
+def evaluate_map(X,kernel,n_output):
+    shots=512
     n=2**n_output
     theta_params_optimized=list(kernel.training_parameter_binds.values())
     n_layers_emb=1
@@ -89,14 +86,15 @@ def evaluate_kernel(X,kernel):
     mapped_X=[]
     backend=AerSimulator(method='statevector')
     for x_params in X:
-        qc_optimized=embedding.ising_quantum_circuit(n_inputs,x_params,theta_params_optimized,n_layers_emb)
-        job=execute(qc_optimized, backend,shots=512)
+        qc_optimized=embedding.ising_quantum_circuit(n_inputs,x_params,theta_params_optimized,n_layers_emb,n_output)
+        job=execute(qc_optimized, backend,shots=shots)
         result = job.result()
         keys=result.get_counts().keys()
         new_data=[0]*n
         for k_bin in keys:
             k_int=int(k_bin, 2)
-            new_data[k_int]=result.get_counts()[k_bin]
-        mapped_X.append(new_data)
+            #print(result.get_counts()[k_bin])
+            new_data[k_int]=result.get_counts()[k_bin]*1./shots
+        mapped_X.append(new_data[:-1])
     return mapped_X
 

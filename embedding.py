@@ -66,8 +66,7 @@ def rx_kernel(qc,x_params,n_external_inputs,n_extra_qubits):
         qc.h(n_external_inputs+j)
 
 
-def ising_quantum_circuit(n_inputs,x_params,theta_emb_params,n_layers_emb):
-    n_output=2
+def ising_quantum_circuit(n_inputs,x_params,theta_emb_params,n_layers_emb,n_output):
     qc=QuantumCircuit(n_inputs,n_output)
     from qiskit.quantum_info import Statevector
     state_vector=Statevector(qc)
