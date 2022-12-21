@@ -94,7 +94,7 @@ def evaluate_map(X,kernel,n_output):
         for k_bin in keys:
             k_int=int(k_bin, 2)
             #print(result.get_counts()[k_bin])
-            new_data[k_int]=result.get_counts()[k_bin]*1./shots
+            new_data[k_int]=result.get_counts()[k_bin]*1./shots*np.pi
         mapped_X.append(new_data[:-1])
     return mapped_X
 
