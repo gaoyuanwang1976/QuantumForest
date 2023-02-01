@@ -97,7 +97,7 @@ def divide_input(X,excess_group,n_groups,n_in_dim):
     n_data=len(X)
     while excess_group>0:
         X=np.vstack([X.T, [0]*n_data]).T
-        excess_group=-1
+        excess_group=excess_group-1
 
     X_group=np.zeros((n_groups,n_data,n_in_dim))
 

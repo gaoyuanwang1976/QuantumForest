@@ -46,7 +46,7 @@ if __name__=="__main__":
     parser.add_argument('-n','--num_auxiliary_qubits', required=False,help='number of auxiliary qubits',default=0)
 
     args = parser.parse_args()
-    import_path='dataset/genomics_datasets_tpm_log'
+    import_path = 'dataset/QC_all_datasets/genomics/'
     shuffle=args.shuffle
     shuffleseed = args.shuffleseed
     n_layers_drc=args.num_layers_drc
