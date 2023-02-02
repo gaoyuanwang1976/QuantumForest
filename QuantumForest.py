@@ -46,6 +46,7 @@ if __name__=="__main__":
     parser.add_argument('-n','--num_auxiliary_qubits', required=False,help='number of auxiliary qubits',default=0)
 
     args = parser.parse_args()
+    print("hyper parameters: ",args)
     import_path = 'dataset/QC_all_datasets/genomics/'
     shuffle=args.shuffle
     shuffleseed = args.shuffleseed
@@ -63,7 +64,11 @@ if __name__=="__main__":
     ratio = [float(entry) for entry in ratio]
 
     dataset = preprocessing.import_dataset(import_path,dataset,shuffle, shuffleseed)
+    dataset = preprocessing.alternate_g(dataset)
+    #dataset = preprocessing.get_uq_g(dataset)
     dataset = preprocessing.normalize_dataset(dataset)
+
+
 
     print(f"using dataset of length {len(dataset)}")
     if partition_size != 'max':
@@ -88,6 +93,7 @@ if __name__=="__main__":
 ############################
 ###### Quantum Kernel dimension reduction
 ############################
+
     while n_groups > 1:
         excess_group=n_groups*n_in_dim-n_total_feature   ### the number of (empty) dimensions in the last group that need to be filled with zeros.
 
@@ -142,6 +148,7 @@ if __name__=="__main__":
 ##################
 #### final classification, standard kernel/QNN classification
 ##################
+
     n_inputs = len(Xtrain[0])+n_extra_qubits
     n_external_inputs=len(Xtrain[0])
     n_embedding_gates=comb(n_inputs,2)     #number of gates for ising_interaction (pair-wise) embedding, this number may change for another embedding
@@ -153,8 +160,7 @@ if __name__=="__main__":
     from qiskit.quantum_info import Statevector
     state_vector=Statevector(qc_classifier)
     qc_classifier.initialize(state_vector,list(range(0,n_inputs)))
-    embedding.ising_interaction(qc_classifier,x_params,theta_emb_params,n_inputs,n_layers_emb,n_extra_qubits) 
-  
+    embedding.ising_interaction(qc_classifier,x_params,theta_emb_params,n_inputs,n_layers_emb,n_external_inputs,n_extra_qubits)
 ############################
 ###### Quantum Kernel classification
 ############################

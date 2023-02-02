@@ -3,6 +3,17 @@
 
 import numpy as np
 import random
+import torch
+
+def array_to_dataset(array):
+    """Converts data arrays into appropriate form for use in QNN. Assumes each entry in array is a seperate datapoint w the last column corresponding to label."""
+    dataset = []
+    for entry in array:
+        input = torch.tensor(entry[:len(entry)-1])
+        label = entry[len(entry)-1]
+        dataset.append((input,label))
+    return dataset
+
 
 def import_dataset(dirname, filename, shuffle=False, shuffleseed=False):
     """
@@ -10,14 +21,14 @@ def import_dataset(dirname, filename, shuffle=False, shuffleseed=False):
     Includes options to shuffle randomly or according to a given seed.
     """
     array = np.loadtxt(dirname+"/"+filename)
-    
+
     if shuffle:
         if shuffleseed==False:
             np.random.shuffle(array)
         else:
             np.random.seed(shuffleseed)
             np.random.shuffle(array)
-    return array
+    return array_to_dataset(array)
 
 def train_val_test(dataset, scale=100, ratio=[0.33,0.33,0.33]):
     """splits dataset into training, validation, and test partitions according to list 'ratio' scaled by 'scale'"""
@@ -52,16 +63,75 @@ def get_info_g(dataset, verbose=False):
 # note that this is overruled by the alternate_g function, which is used by default
 def balance_g(dataset):
     ones, zeros = get_info_g(dataset)
-    ratio = (zeros-ones)/(zeros)
+    if ones<zeros:
+        length = ones
+    else:
+        length = zeros
+
     balanced = []
+    one_n=0
+    zero_n=0
+    for item in dataset:
+        label = item[-1]
+        if label == 0 and zero_n<length:
+            balanced.append(item)
+            zero_n+=1
+        if label == 1 and one_n<length:
+            balanced.append(item)
+            one_n+=1
+    return balanced
+
+def alternate_g(dataset):
+    ones, zeros = sort_dataset(dataset)
+    return coallated_dataset(ones, zeros)
+
+def sort_dataset(dataset, a_label=1):
+    labeled_a = []
+    labeled_b = []
+    for data in dataset:
+        input, label = data
+        if label == a_label:
+            labeled_a.append(data)
+        else:
+            labeled_b.append(data)
+    return (labeled_a, labeled_b)
+
+def coallated_dataset(set1, set2):
+    dataset = []
+    if len(set1)<len(set2):
+        length = len(set1)
+    else:
+        length = len(set2)
+    for i in range(length):
+        dataset.append(set1[i])
+        dataset.append(set2[i])
+    return dataset
+
+def get_uq_g(dataset):
+    """Removes all duplicate and conflicting inputs from a dataset."""
+    uq = []
+    num_0 = 0
+    num_1 = 0
+    num_overlap = 0
+    dict = collections.defaultdict(set)
+    for data, label in dataset:
+        key = tuple(data.flatten().tolist())
+        dict[key].add(label)
     for item in dataset:
         data, label = item
-        if label == 0:
-            if random.random()>ratio:
-                balanced.append(item)
+        key = tuple(data.flatten().tolist())
+        if dict[key] == {0}:
+            num_0 +=1
+            uq.append(item)
+        elif dict[key] == {1}:
+            num_1 +=1
+            uq.append(item)
+        elif dict[key] == {0,1}:
+            num_overlap +=1
         else:
-            balanced.append(item)
-    return balanced
+            print("Error with item", item)
+            break
+    return uq
 
 
 
@@ -72,10 +142,17 @@ def round_yscore(yscore):
     return rounded
 
 def normalize_dataset(dataset):
-    X = (dataset.T[:-1]).T
-    y=dataset.T[-1]
-    maxData=(max(X.flatten())).round(3)
-    minData=(min(X.flatten())).round(3)
+    X=[]
+    y=[]
+    for data,label in dataset:
+        X.append(data.numpy())
+        y.append(label)
+
+    X=np.around(X,1)
+
+    maxData=(max(X.flatten())).round(1)
+    minData=(min(X.flatten())).round(1)
+
     X=(X-minData)/(maxData-minData)*np.pi
     dataset=np.append(X.T,np.array([y]),axis=0).T
 
@@ -86,7 +163,7 @@ def convert_for_qiskit(dataset):
     y = []
     for data in dataset:
         input=data[:-1]
-        input = input.round(3)
+        #input = input.round(1)
         X.append(input)
         y.append(data[-1])
     X = np.array(X)

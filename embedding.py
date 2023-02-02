@@ -36,13 +36,13 @@ class QKTCallback:
     def clear_callback_data(self):
         self._data = [[] for i in range(5)]
 
-def ising_interaction(qc,x_params,theta,n_inputs,n_layers,n_extra_qubits):
+def ising_interaction(qc,x_params,theta,n_inputs,n_layers,n_external_inputs,n_extra_qubits):
     param_index=0
     for layer in range(n_layers):
-        for i in range(n_inputs):
+        for i in range(n_external_inputs):
             qc.rx(x_params[i], i)
         for j in range(n_extra_qubits):
-            qc.h(n_inputs+j)
+            qc.h(n_external_inputs+j)
             
         for q1 in range(n_inputs):
             for q2 in range(q1,n_inputs):
@@ -53,10 +53,10 @@ def ising_interaction(qc,x_params,theta,n_inputs,n_layers,n_extra_qubits):
             qc.ry(theta[param_index],q_tmp)
             param_index+=1
 
-    for i in range(n_inputs):
+    for i in range(n_external_inputs):
         qc.rx(x_params[i], i)
     for j in range(n_extra_qubits):
-        qc.h(n_inputs+j)
+        qc.h(n_external_inputs+j)
     return qc
 
 def rx_kernel(qc,x_params,n_external_inputs,n_extra_qubits):
