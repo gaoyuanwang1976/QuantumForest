@@ -68,14 +68,16 @@ def rx_kernel(qc,x_params,n_external_inputs,n_extra_qubits):
 
 def ising_quantum_circuit(n_inputs,x_params,theta_emb_params,n_layers_emb,n_output):
     qc=QuantumCircuit(n_inputs,n_output)
+
     from qiskit.quantum_info import Statevector
     state_vector=Statevector(qc)
     qc.initialize(state_vector,list(range(0,n_inputs)))
     qc.barrier()
 
 #### ansatz ####
+    n_external_inputs=0
     n_extra_qubits=0
-    ising_interaction(qc,x_params,theta_emb_params,n_inputs,n_layers_emb,n_extra_qubits) 
+    ising_interaction(qc,x_params,theta_emb_params,n_inputs,n_layers_emb,n_external_inputs,n_extra_qubits)
     qc.barrier()
     qc.measure(list(range(n_output)),list(range(n_output)))
 #### measurement to reduce dimensionality ####
