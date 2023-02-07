@@ -149,14 +149,26 @@ def normalize_dataset(dataset):
         y.append(label)
 
     X=np.around(X,1)
-
-    maxData=(max(X.flatten())).round(1)
-    minData=(min(X.flatten())).round(1)
-
-    X=(X-minData)/(maxData-minData)*np.pi
+    X_t=X.T
+    for i,feature in enumerate(X_t):
+        maxData=(max(feature)).round(1)
+        minData=(min(feature)).round(1)
+        #feature=(feature-minData)/(maxData-minData)*np.pi
+        X_t[i]=(feature-minData)/(maxData-minData)*2*np.pi
+    #X=(X-minData)/(maxData-minData)*np.pi
+    X=X_t.T
     dataset=np.append(X.T,np.array([y]),axis=0).T
 
     return dataset
+
+def normalize_feature(X):
+    X=np.around(X,1)
+    X_t=X.T
+    for i,feature in enumerate(X_t):
+        maxData=(max(feature)).round(1)
+        minData=(min(feature)).round(1)
+        X_t[i]=(feature-minData)/(maxData-minData)*2*np.pi
+    X=X_t.T
 
 def convert_for_qiskit(dataset):
     X = []

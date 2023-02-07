@@ -34,7 +34,7 @@ import KernelAlignment
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description="Simulate a QNN with the appropriate hyperparameters.")
-    parser.add_argument('-nd','--num_layers_drc', required = False, type=int, help='determines the number of layers of dimension reduction kernel', default=3)
+    parser.add_argument('-nd','--num_layers_drc', required = False, type=int, help='determines the number of layers of dimension reduction kernel', default=1)
     parser.add_argument('-nc','--num_layers_emb', required = False, type=int, help='determines the number of layers of classification kernel', default=3)
     parser.add_argument('-g', '--genomics_dataset', required=False, help='determines which number genomics dataset to run. defaults to dataset 1', default=1)
     parser.add_argument('--partition_size', required=False, help='sets partition size for splitting data into train, test, and validation sets (scales the partition_ratio arg)', default='max')
@@ -108,25 +108,31 @@ if __name__=="__main__":
 
         ### map the features in each group separately 
         for g_index in range(n_groups):
+            print('group: ',g_index,'\n\n\n\n')
             n_inputs = len(Xtrain_group[g_index][0])
             n_drc_gates=comb(n_inputs,2)     #number of gates for ising_interaction (pair-wise) embedding, this number may change for another embedding
             n_gates_drc = (n_inputs+n_drc_gates)*n_layers_drc
+            
             x_params_drc = ParameterVector('x_drc',n_inputs)
             theta_params_drc = ParameterVector('theta_drc', n_gates_drc)
             qc=embedding.ising_quantum_circuit(n_inputs,x_params_drc,theta_params_drc,n_layers_drc,n_out_dim)
-
+            ##qc=embedding.rx_circuit(x_params_drc,n_inputs,n_extra_qubits,n_out_dim)
             backend=AerSimulator(method='statevector')
+            ##quant_kernel = QuantumKernel(feature_map=qc,quantum_instance=backend)
             quant_kernel = QuantumKernel(feature_map=qc,training_parameters=theta_params_drc,quantum_instance=backend)
             cb_qkt_drc = embedding.QKTCallback()
-            opt_drc = SPSA(maxiter=50, callback=cb_qkt_drc.callback)
+            opt_drc = COBYLA(maxiter=100, rhobeg= 3)
+            #SPSA(callback=cb_qkt_drc.callback)
             loss_func_drc = KernelAlignment.KALoss(n_output=n_out_dim)
-
+            
+            initial_params = [0]*len(theta_params_drc)
+            #initial_params = np.random.rand(len(theta_params_drc))*np.pi*2
             for epoch in range(1):
-                qk_trainer = QuantumKernelTrainer(quantum_kernel=quant_kernel,loss=loss_func_drc,optimizer=opt_drc)
+                qk_trainer = QuantumKernelTrainer(quantum_kernel=quant_kernel,loss=loss_func_drc,optimizer=opt_drc, initial_point=initial_params)
                 print('start fitting')
                 qkt_results = qk_trainer.fit(Xtrain_group[g_index], ytrain)
                 optimized_kernel = qkt_results.quantum_kernel
-            
+            ##optimized_kernel=quant_kernel
             print('start producing output')
 
             tmp_tr=KernelAlignment.evaluate_map(Xtrain_group[g_index],optimized_kernel,n_out_dim)
@@ -135,10 +141,11 @@ if __name__=="__main__":
             Xtest_mapped=preprocessing.append_mapped(Xtest_mapped,tmp_te)
             tmp_va=KernelAlignment.evaluate_map(Xval_group[g_index],optimized_kernel,n_out_dim)
             Xval_mapped=preprocessing.append_mapped(Xval_mapped,tmp_va)
-
-        Xtrain=np.array(Xtrain_mapped, dtype="object")
-        Xtest=np.array(Xtest_mapped, dtype="object")
-        Xval=np.array(Xval_mapped, dtype="object")
+            print('origin: ',Xtrain_group[g_index][:5])
+            print('mapped: ',Xtrain_mapped[:5])
+        Xtrain=preprocessing.normalize_feature(np.array(Xtrain_mapped, dtype="object"))
+        Xtest=preprocessing.normalize_feature(np.array(Xtest_mapped, dtype="object"))
+        Xval=preprocessing.normalize_feature(np.array(Xval_mapped, dtype="object"))
 
         n_total_feature=len(Xtrain[0])
         n_groups=math.ceil(n_total_feature/n_in_dim)

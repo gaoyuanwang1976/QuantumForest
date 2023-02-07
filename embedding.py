@@ -1,6 +1,7 @@
 import torch
 from torch.autograd import Function
 import torch.nn as nn
+from qiskit.extensions import UnitaryGate
 
 from qiskit import QuantumCircuit,QuantumRegister, Aer, execute
 import numpy as np
@@ -9,6 +10,15 @@ import qiskit
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.visualization import dag_drawer
 from collections import OrderedDict
+
+#%% YplusZ_gate definition (for use in y-measurement)
+yz_mtx = np.zeros((2,2), dtype=complex)
+yz_mtx[0][0] = 1
+yz_mtx[0][1] = -1j
+yz_mtx[1][0] = 1j
+yz_mtx[1][1] = -1
+yz_mtx = yz_mtx*(1/np.sqrt(2)) #making sure the matrix is unitary
+YplusZ_gate = UnitaryGate(yz_mtx, label="Y+Z") #casts the matrix as a qiskit circuit gate
 
 
 class QKTCallback:
@@ -65,6 +75,24 @@ def rx_kernel(qc,x_params,n_external_inputs,n_extra_qubits):
     for j in range(n_extra_qubits):
         qc.h(n_external_inputs+j)
 
+def rx_circuit(x_params,n_inputs,n_extra_qubits,n_output):
+    qc=QuantumCircuit(n_inputs,n_output)
+    from qiskit.quantum_info import Statevector
+
+    state_vector=Statevector(qc)
+
+    qc.initialize(state_vector,list(range(0,n_inputs)))
+    qc.barrier()
+    rx_kernel(qc,x_params,n_inputs,n_extra_qubits)
+    qc.barrier()
+
+    #for readout_qubit in list(range(n_output)):
+    #    qc.append(YplusZ_gate, [readout_qubit]) #effectively makes the measurement a y-measurement
+    qc.measure(list(range(n_output)),list(range(n_output)))
+    #for readout_qubit in list(range(n_output)):
+    #    qc.append(YplusZ_gate.inverse(), [readout_qubit])
+
+    return qc
 
 def ising_quantum_circuit(n_inputs,x_params,theta_emb_params,n_layers_emb,n_output):
     qc=QuantumCircuit(n_inputs,n_output)
@@ -78,8 +106,15 @@ def ising_quantum_circuit(n_inputs,x_params,theta_emb_params,n_layers_emb,n_outp
     n_external_inputs=0
     n_extra_qubits=0
     ising_interaction(qc,x_params,theta_emb_params,n_inputs,n_layers_emb,n_external_inputs,n_extra_qubits)
+    
     qc.barrier()
+    for readout_qubit in list(range(n_output)):
+        qc.append(YplusZ_gate, [readout_qubit]) #effectively makes the measurement a y-measurement
+    
     qc.measure(list(range(n_output)),list(range(n_output)))
+
+    for readout_qubit in list(range(n_output)):
+        qc.append(YplusZ_gate.inverse(), [readout_qubit])
 #### measurement to reduce dimensionality ####
     return qc
 

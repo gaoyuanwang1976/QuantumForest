@@ -8,7 +8,7 @@ from typing import Sequence
 import numpy as np
 from sklearn.svm import SVC
 import embedding
-
+import time
 # KernelAlignment Loss
 class KALoss(KernelLoss):
 
@@ -36,34 +36,49 @@ class KALoss(KernelLoss):
         """
         # Bind training parameters
         quantum_kernel.assign_training_parameters(parameter_values)
-
         # Get kernel matrix of the input features, inner product is calculated
         kmatrix_o=np.zeros((len(data),len(data)))
-        for index_a,a in enumerate(data):
-            for index_b,b in enumerate(data):
-                kmatrix_o[index_a][index_b]=np.dot(a, b)
+        dis=np.zeros((len(data),len(data)))
+        one=time.time()
+        
+        dis=data[:,None]-data[None,:]
+        dis=np.linalg.norm(dis,axis=2)
+        dis2=np.multiply(dis,dis)
+        kmatrix_o=np.exp((-1./data.shape[1])*dis2)
+        two=time.time()
         kmatrix_o=normalize_kernel(kmatrix_o)
-        # Get estimated kernel matrix after applying feature mapping
-        #If y_vec is None, self inner product is calculated. If using statevector_simulator, only build circuits for Ψ(x)|0⟩, then perform inner product classically.
+        three=time.time()
 
+        # Get estimated kernel matrix after applying feature mapping
         mapped_data=evaluate_map(data,quantum_kernel,self.kwargs['n_output'])
-        #mapped_data=data
+        four=time.time()
+        #print('time: ',four-three,three-two,two-one)
+        #print('mapped data: ',mapped_data[:10])
         kmatrix=np.zeros((len(mapped_data),len(mapped_data)))
-        for index_a,a in enumerate(mapped_data):
-            for index_b,b in enumerate(mapped_data):
-                kmatrix[index_a][index_b]=np.dot(a, b)
+        dis_mapped=mapped_data[:,None]-mapped_data[None,:]
+        dis_mapped=np.linalg.norm(dis_mapped,axis=2)
+        dis2_mapped=np.multiply(dis_mapped,dis_mapped)
+        kmatrix=np.exp((-1./data.shape[1])*dis2_mapped)
+        #for index_a,a in enumerate(mapped_data):
+        #    for index_b,b in enumerate(mapped_data):
+        #        dis=np.linalg.norm(np.array(a)-np.array(b))
+        #        kmatrix[index_a][index_b]=np.exp((-1./len(a))*dis*dis)
 
         kmatrix=normalize_kernel(kmatrix)
-    
+
         # Calculate loss
-        loss = -1.*frobenius_alignment(kmatrix,kmatrix_o)
- 
+        #loss = -1.*frobenius_alignment(kmatrix,kmatrix_o)
+        loss=L1Loss_matrix(kmatrix,kmatrix_o)
+        print(loss)
+        print('mapped: ',mapped_data[:5])
+        print('data: ',data[:5])
         return loss
 
 def normalize_kernel(kernel):
     maxData=(max(kernel.flatten())).round(3)
     minData=(min(kernel.flatten())).round(3)
     kernel=(kernel-minData)/(maxData-minData)
+
     return kernel
 
 def frobenius_alignment(k1,k2):
@@ -75,11 +90,19 @@ def frobenius_alignment(k1,k2):
     alignment=k1_k2_F/k1_F/k2_F
     return alignment
 
+def L1Loss_matrix(k1,k2):
+    summe=0
+    for sub1, sub2 in zip(k1, k2):
+        # iterate for elements
+        for ele1, ele2 in zip(sub1, sub2):
+            summe=summe+abs(ele2 - ele1)
+    return summe
 
 def evaluate_map(X,kernel,n_output):
-    shots=512
+    shots=1000
     n=2**n_output
     theta_params_optimized=list(kernel.training_parameter_binds.values())
+    #print('theta: ',theta_params_optimized,any(np.isinf(theta_params_optimized))==True)
     n_layers_emb=1
     n_inputs=len(X[0])
     
@@ -87,14 +110,19 @@ def evaluate_map(X,kernel,n_output):
     backend=AerSimulator(method='statevector')
     for x_params in X:
         qc_optimized=embedding.ising_quantum_circuit(n_inputs,x_params,theta_params_optimized,n_layers_emb,n_output)
+
+        #qc_optimized=embedding.rx_circuit(x_params,n_inputs,0,n_output)
         job=execute(qc_optimized, backend,shots=shots)
+
         result = job.result()
         keys=result.get_counts().keys()
+
         new_data=[0]*n
         for k_bin in keys:
             k_int=int(k_bin, 2)
-            #print(result.get_counts()[k_bin])
             new_data[k_int]=result.get_counts()[k_bin]*1./shots*np.pi
         mapped_X.append(new_data[:-1])
-    return mapped_X
+
+
+    return np.array(mapped_X)
 
