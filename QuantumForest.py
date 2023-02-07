@@ -54,7 +54,7 @@ if __name__=="__main__":
     n_layers_emb = args.num_layers_emb
     n_in_dim = args.dimension_in
     n_out_dim = args.dimension_out
-    n_extra_qubits=int(args.num_auxiliary_qubits)
+    n_dummy=int(args.num_auxiliary_qubits)
 
     dataset = "data_"+str(args.genomics_dataset)
     partition_size=args.partition_size
@@ -108,31 +108,28 @@ if __name__=="__main__":
 
         ### map the features in each group separately 
         for g_index in range(n_groups):
-            print('group: ',g_index,'\n\n\n\n')
+            print('group: ',g_index)
             n_inputs = len(Xtrain_group[g_index][0])
             n_drc_gates=comb(n_inputs,2)     #number of gates for ising_interaction (pair-wise) embedding, this number may change for another embedding
-            n_gates_drc = (n_inputs+n_drc_gates)*n_layers_drc
-            
+            #n_gates_drc = (n_inputs+n_drc_gates+n_drc_gates)*n_layers_drc
+            n_gates_drc = (n_drc_gates)*n_layers_drc
             x_params_drc = ParameterVector('x_drc',n_inputs)
             theta_params_drc = ParameterVector('theta_drc', n_gates_drc)
             qc=embedding.ising_quantum_circuit(n_inputs,x_params_drc,theta_params_drc,n_layers_drc,n_out_dim)
-            ##qc=embedding.rx_circuit(x_params_drc,n_inputs,n_extra_qubits,n_out_dim)
             backend=AerSimulator(method='statevector')
-            ##quant_kernel = QuantumKernel(feature_map=qc,quantum_instance=backend)
             quant_kernel = QuantumKernel(feature_map=qc,training_parameters=theta_params_drc,quantum_instance=backend)
             cb_qkt_drc = embedding.QKTCallback()
-            opt_drc = COBYLA(maxiter=100, rhobeg= 3)
-            #SPSA(callback=cb_qkt_drc.callback)
+            #opt_drc = COBYLA(maxiter=100, rhobeg= 1)
+            opt_drc =SPSA(maxiter=10,callback=cb_qkt_drc.callback)
             loss_func_drc = KernelAlignment.KALoss(n_output=n_out_dim)
             
-            initial_params = [0]*len(theta_params_drc)
-            #initial_params = np.random.rand(len(theta_params_drc))*np.pi*2
+            #initial_params = [0]*len(theta_params_drc)
+            initial_params = np.random.rand(len(theta_params_drc))*np.pi*2
             for epoch in range(1):
                 qk_trainer = QuantumKernelTrainer(quantum_kernel=quant_kernel,loss=loss_func_drc,optimizer=opt_drc, initial_point=initial_params)
                 print('start fitting')
                 qkt_results = qk_trainer.fit(Xtrain_group[g_index], ytrain)
                 optimized_kernel = qkt_results.quantum_kernel
-            ##optimized_kernel=quant_kernel
             print('start producing output')
 
             tmp_tr=KernelAlignment.evaluate_map(Xtrain_group[g_index],optimized_kernel,n_out_dim)
@@ -156,7 +153,7 @@ if __name__=="__main__":
 #### final classification, standard kernel/QNN classification
 ##################
 
-    n_inputs = len(Xtrain[0])+n_extra_qubits
+    n_inputs = len(Xtrain[0])+n_dummy
     n_external_inputs=len(Xtrain[0])
     n_embedding_gates=comb(n_inputs,2)     #number of gates for ising_interaction (pair-wise) embedding, this number may change for another embedding
     n_gates_emb = (n_inputs+n_embedding_gates)*n_layers_emb
@@ -167,7 +164,7 @@ if __name__=="__main__":
     from qiskit.quantum_info import Statevector
     state_vector=Statevector(qc_classifier)
     qc_classifier.initialize(state_vector,list(range(0,n_inputs)))
-    embedding.ising_interaction(qc_classifier,x_params,theta_emb_params,n_inputs,n_layers_emb,n_external_inputs,n_extra_qubits)
+    embedding.ising_interaction(qc_classifier,x_params,theta_emb_params,n_inputs,n_layers_emb,n_external_inputs,n_dummy)
 ############################
 ###### Quantum Kernel classification
 ############################

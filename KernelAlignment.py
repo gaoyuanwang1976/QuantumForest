@@ -2,6 +2,7 @@ from qiskit_machine_learning.utils.loss_functions import KernelLoss
 from qiskit_machine_learning.kernels import TrainableKernel
 from qiskit.circuit import ParameterVector
 from qiskit.providers.aer import AerSimulator
+from qiskit.quantum_info import Statevector
 
 from qiskit import assemble,Aer,execute
 from typing import Sequence
@@ -39,39 +40,28 @@ class KALoss(KernelLoss):
         # Get kernel matrix of the input features, inner product is calculated
         kmatrix_o=np.zeros((len(data),len(data)))
         dis=np.zeros((len(data),len(data)))
-        one=time.time()
-        
+
         dis=data[:,None]-data[None,:]
         dis=np.linalg.norm(dis,axis=2)
         dis2=np.multiply(dis,dis)
         kmatrix_o=np.exp((-1./data.shape[1])*dis2)
-        two=time.time()
         kmatrix_o=normalize_kernel(kmatrix_o)
-        three=time.time()
 
         # Get estimated kernel matrix after applying feature mapping
         mapped_data=evaluate_map(data,quantum_kernel,self.kwargs['n_output'])
-        four=time.time()
-        #print('time: ',four-three,three-two,two-one)
-        #print('mapped data: ',mapped_data[:10])
+
         kmatrix=np.zeros((len(mapped_data),len(mapped_data)))
         dis_mapped=mapped_data[:,None]-mapped_data[None,:]
         dis_mapped=np.linalg.norm(dis_mapped,axis=2)
         dis2_mapped=np.multiply(dis_mapped,dis_mapped)
         kmatrix=np.exp((-1./data.shape[1])*dis2_mapped)
-        #for index_a,a in enumerate(mapped_data):
-        #    for index_b,b in enumerate(mapped_data):
-        #        dis=np.linalg.norm(np.array(a)-np.array(b))
-        #        kmatrix[index_a][index_b]=np.exp((-1./len(a))*dis*dis)
-
         kmatrix=normalize_kernel(kmatrix)
 
         # Calculate loss
         #loss = -1.*frobenius_alignment(kmatrix,kmatrix_o)
         loss=L1Loss_matrix(kmatrix,kmatrix_o)
+        #print(data[:5],mapped_data[:5])
         print(loss)
-        print('mapped: ',mapped_data[:5])
-        print('data: ',data[:5])
         return loss
 
 def normalize_kernel(kernel):
@@ -93,25 +83,23 @@ def frobenius_alignment(k1,k2):
 def L1Loss_matrix(k1,k2):
     summe=0
     for sub1, sub2 in zip(k1, k2):
-        # iterate for elements
         for ele1, ele2 in zip(sub1, sub2):
-            summe=summe+abs(ele2 - ele1)
+            summe=summe+abs(ele2 - ele1)*1./len(sub1)/len(sub1)
     return summe
 
 def evaluate_map(X,kernel,n_output):
     shots=1000
-    n=2**n_output
+
+    ##n=2**n_output
+
     theta_params_optimized=list(kernel.training_parameter_binds.values())
-    #print('theta: ',theta_params_optimized,any(np.isinf(theta_params_optimized))==True)
     n_layers_emb=1
     n_inputs=len(X[0])
-    
+    n=2**n_inputs
     mapped_X=[]
     backend=AerSimulator(method='statevector')
     for x_params in X:
-        qc_optimized=embedding.ising_quantum_circuit(n_inputs,x_params,theta_params_optimized,n_layers_emb,n_output)
-
-        #qc_optimized=embedding.rx_circuit(x_params,n_inputs,0,n_output)
+        qc_optimized=embedding.ising_quantum_circuit(n_inputs,x_params,theta_params_optimized,n_layers_emb,n_output) # n_dummy is set 0 for drc
         job=execute(qc_optimized, backend,shots=shots)
 
         result = job.result()
@@ -121,7 +109,8 @@ def evaluate_map(X,kernel,n_output):
         for k_bin in keys:
             k_int=int(k_bin, 2)
             new_data[k_int]=result.get_counts()[k_bin]*1./shots*np.pi
-        mapped_X.append(new_data[:-1])
+        ##mapped_X.append(new_data[:-1])
+        mapped_X.append(new_data[:n_output])
 
 
     return np.array(mapped_X)

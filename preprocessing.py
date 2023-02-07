@@ -198,6 +198,5 @@ def divide_input(X,excess_group,n_groups,n_in_dim):
 
 def append_mapped(X,X_mapped):
     for index in range(len(X_mapped)):
-
         X[index].extend(X_mapped[index])
     return X

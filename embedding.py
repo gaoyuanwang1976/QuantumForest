@@ -2,6 +2,7 @@ import torch
 from torch.autograd import Function
 import torch.nn as nn
 from qiskit.extensions import UnitaryGate
+from qiskit.quantum_info import Statevector
 
 from qiskit import QuantumCircuit,QuantumRegister, Aer, execute
 import numpy as np
@@ -46,28 +47,39 @@ class QKTCallback:
     def clear_callback_data(self):
         self._data = [[] for i in range(5)]
 
+
+
 def ising_interaction(qc,x_params,theta,n_inputs,n_layers,n_external_inputs,n_extra_qubits):
+    typ=isinstance(theta,list)
     param_index=0
     for layer in range(n_layers):
         for i in range(n_external_inputs):
             qc.rx(x_params[i], i)
         for j in range(n_extra_qubits):
             qc.h(n_external_inputs+j)
-            
         for q1 in range(n_inputs):
             for q2 in range(q1,n_inputs):
                 if q1!=q2:
                     qc.rzz(theta[param_index],q1,q2)
                     param_index+=1
-        for q_tmp in range(n_inputs):
-            qc.ry(theta[param_index],q_tmp)
-            param_index+=1
+        #for q1 in range(n_inputs):
+        #    for q2 in range(q1,n_inputs):
+        #        if q1!=q2:
+        #            qc.rzx(theta[param_index],q1,q2)
+        #            param_index+=1
 
+        #for q_tmp in range(n_inputs):
+        #    qc.ry(theta[param_index],q_tmp)
+        #    param_index+=1
+ 
     for i in range(n_external_inputs):
         qc.rx(x_params[i], i)
     for j in range(n_extra_qubits):
         qc.h(n_external_inputs+j)
+
     return qc
+
+
 
 def rx_kernel(qc,x_params,n_external_inputs,n_extra_qubits):
     for i in range(n_external_inputs):
@@ -75,46 +87,30 @@ def rx_kernel(qc,x_params,n_external_inputs,n_extra_qubits):
     for j in range(n_extra_qubits):
         qc.h(n_external_inputs+j)
 
+
 def rx_circuit(x_params,n_inputs,n_extra_qubits,n_output):
     qc=QuantumCircuit(n_inputs,n_output)
-    from qiskit.quantum_info import Statevector
-
     state_vector=Statevector(qc)
-
     qc.initialize(state_vector,list(range(0,n_inputs)))
     qc.barrier()
     rx_kernel(qc,x_params,n_inputs,n_extra_qubits)
     qc.barrier()
-
-    #for readout_qubit in list(range(n_output)):
-    #    qc.append(YplusZ_gate, [readout_qubit]) #effectively makes the measurement a y-measurement
     qc.measure(list(range(n_output)),list(range(n_output)))
-    #for readout_qubit in list(range(n_output)):
-    #    qc.append(YplusZ_gate.inverse(), [readout_qubit])
-
     return qc
 
-def ising_quantum_circuit(n_inputs,x_params,theta_emb_params,n_layers_emb,n_output):
-    qc=QuantumCircuit(n_inputs,n_output)
 
-    from qiskit.quantum_info import Statevector
+def ising_quantum_circuit(n_inputs,x_params,theta_emb_params,n_layers_emb,n_output):
+    n_output=n_inputs
+
+    qc=QuantumCircuit(n_inputs,n_output)
     state_vector=Statevector(qc)
     qc.initialize(state_vector,list(range(0,n_inputs)))
     qc.barrier()
-
-#### ansatz ####
-    n_external_inputs=0
-    n_extra_qubits=0
-    ising_interaction(qc,x_params,theta_emb_params,n_inputs,n_layers_emb,n_external_inputs,n_extra_qubits)
-    
+    n_dummy=0
+    n_feature=n_inputs-n_dummy
+    ising_interaction(qc,x_params,theta_emb_params,n_inputs,n_layers_emb,n_feature,0) #set n_dummy=0 in drc
     qc.barrier()
-    for readout_qubit in list(range(n_output)):
-        qc.append(YplusZ_gate, [readout_qubit]) #effectively makes the measurement a y-measurement
-    
     qc.measure(list(range(n_output)),list(range(n_output)))
 
-    for readout_qubit in list(range(n_output)):
-        qc.append(YplusZ_gate.inverse(), [readout_qubit])
-#### measurement to reduce dimensionality ####
     return qc
 
