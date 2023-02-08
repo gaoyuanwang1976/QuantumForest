@@ -88,13 +88,13 @@ if __name__=="__main__":
 
     n_total_feature=len(Xtrain[0])
     n_groups=math.ceil(n_total_feature/n_in_dim)
-
+    n_reduction=n_total_feature-n_groups*n_out_dim
 
 ############################
 ###### Quantum Kernel dimension reduction
 ############################
 
-    while n_groups > 1:
+    while n_groups > 1 and n_reduction!=0:
         excess_group=n_groups*n_in_dim-n_total_feature   ### the number of (empty) dimensions in the last group that need to be filled with zeros.
 
         Xtrain_mapped=[[] for _ in range(len(Xtrain))]
@@ -146,6 +146,7 @@ if __name__=="__main__":
 
         n_total_feature=len(Xtrain[0])
         n_groups=math.ceil(n_total_feature/n_in_dim)
+        n_reduction=n_total_feature-n_groups*n_out_dim
 
 
 
