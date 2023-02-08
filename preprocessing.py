@@ -148,11 +148,13 @@ def normalize_dataset(dataset):
         X.append(data.numpy())
         y.append(label)
 
-    X=np.around(X,1)
-    X_t=X.T
+    #X=np.around(X,1)
+    X_t=np.array(X).T
     for i,feature in enumerate(X_t):
-        maxData=(max(feature)).round(1)
-        minData=(min(feature)).round(1)
+        ##maxData=(max(feature)).round(1)
+        ##minData=(min(feature)).round(1)
+        maxData=max(feature)
+        minData=min(feature)
         #feature=(feature-minData)/(maxData-minData)*np.pi
         X_t[i]=(feature-minData)/(maxData-minData)*2*np.pi
     #X=(X-minData)/(maxData-minData)*np.pi
@@ -162,11 +164,13 @@ def normalize_dataset(dataset):
     return dataset
 
 def normalize_feature(X):
-    X=np.around(X,1)
-    X_t=X.T
+    #X=np.around(X,1)
+    X_t=np.array(X).T
     for i,feature in enumerate(X_t):
-        maxData=(max(feature)).round(1)
-        minData=(min(feature)).round(1)
+        #maxData=(max(feature)).round(1)
+        #minData=(min(feature)).round(1)
+        maxData=max(feature)
+        minData=min(feature)
         X_t[i]=(feature-minData)/(maxData-minData)*2*np.pi
     X=X_t.T
 
