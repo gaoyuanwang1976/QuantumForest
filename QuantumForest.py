@@ -111,8 +111,8 @@ if __name__=="__main__":
             print('group: ',g_index)
             n_inputs = len(Xtrain_group[g_index][0])
             n_drc_gates=comb(n_inputs,2)     #number of gates for ising_interaction (pair-wise) embedding, this number may change for another embedding
-            #n_gates_drc = (n_inputs+n_drc_gates+n_drc_gates)*n_layers_drc
-            n_gates_drc = (n_drc_gates)*n_layers_drc
+            n_gates_drc = (n_inputs+n_drc_gates)*n_layers_drc
+            #n_gates_drc = (n_drc_gates)*n_layers_drc
             x_params_drc = ParameterVector('x_drc',n_inputs)
             theta_params_drc = ParameterVector('theta_drc', n_gates_drc)
             qc=embedding.ising_quantum_circuit(n_inputs,x_params_drc,theta_params_drc,n_layers_drc,n_out_dim)

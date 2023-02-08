@@ -173,6 +173,7 @@ def normalize_feature(X):
         minData=min(feature)
         X_t[i]=(feature-minData)/(maxData-minData)*2*np.pi
     X=X_t.T
+    return X
 
 def convert_for_qiskit(dataset):
     X = []

@@ -68,9 +68,9 @@ def ising_interaction(qc,x_params,theta,n_inputs,n_layers,n_external_inputs,n_ex
         #            qc.rzx(theta[param_index],q1,q2)
         #            param_index+=1
 
-        #for q_tmp in range(n_inputs):
-        #    qc.ry(theta[param_index],q_tmp)
-        #    param_index+=1
+        for q_tmp in range(n_inputs):
+            qc.ry(theta[param_index],q_tmp)
+            param_index+=1
  
     for i in range(n_external_inputs):
         qc.rx(x_params[i], i)
