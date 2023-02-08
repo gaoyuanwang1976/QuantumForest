@@ -45,31 +45,34 @@ class KALoss(KernelLoss):
         dis=np.linalg.norm(dis,axis=2)
         dis2=np.multiply(dis,dis)
         kmatrix_o=np.exp((-1./data.shape[1])*dis2)
-        kmatrix_o=normalize_kernel(kmatrix_o)
+        #kmatrix_o=normalize_kernel(kmatrix_o)
 
         # Get estimated kernel matrix after applying feature mapping
         mapped_data=evaluate_map(data,quantum_kernel,self.kwargs['n_output'])
 
         kmatrix=np.zeros((len(mapped_data),len(mapped_data)))
         dis_mapped=mapped_data[:,None]-mapped_data[None,:]
-        dis_mapped=np.linalg.norm(dis_mapped,axis=2)
-        dis2_mapped=np.multiply(dis_mapped,dis_mapped)
+        dis_mapped_norm=np.linalg.norm(dis_mapped,axis=2)
+        dis2_mapped=np.multiply(dis_mapped_norm,dis_mapped_norm)
         kmatrix=np.exp((-1./data.shape[1])*dis2_mapped)
-        kmatrix=normalize_kernel(kmatrix)
+        #print('data',data[:5],mapped_data[:5])
+        #print('dis2_mapped',dis2_mapped[0])
+        #print('norm',dis_mapped_norm[0])
+        #print('kernel',kmatrix[0])
+        #kmatrix=normalize_kernel(kmatrix)
 
         # Calculate loss
         #loss = -1.*frobenius_alignment(kmatrix,kmatrix_o)
         loss=L1Loss_matrix(kmatrix,kmatrix_o)
-        #print(data[:5],mapped_data[:5])
-        print(loss)
+        
+        print('loss',loss,'\n')
         return loss
 
-def normalize_kernel(kernel):
-    maxData=(max(kernel.flatten())).round(3)
-    minData=(min(kernel.flatten())).round(3)
-    kernel=(kernel-minData)/(maxData-minData)
-
-    return kernel
+#def normalize_kernel(kernel):
+#    maxData=(max(kernel.flatten())).round(3)
+#    minData=(min(kernel.flatten())).round(3)
+#    kernel=(kernel-minData)/(maxData-minData)
+#    return kernel
 
 def frobenius_alignment(k1,k2):
     k1_conj=k1.conjugate()
@@ -89,10 +92,9 @@ def L1Loss_matrix(k1,k2):
 
 def evaluate_map(X,kernel,n_output):
     shots=1000
-
     ##n=2**n_output
-
     theta_params_optimized=list(kernel.training_parameter_binds.values())
+    #print('theta',theta_params_optimized)
     n_layers_emb=1
     n_inputs=len(X[0])
     n=2**n_inputs
